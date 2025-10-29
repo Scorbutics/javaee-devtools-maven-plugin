@@ -30,6 +30,7 @@ public class WatcherEventLogger implements FileSystemEventObserver {
 	private final Map<Path, FileEvent>     eventAccumulator = new ConcurrentHashMap<>();
 	private final ScheduledExecutorService scheduler        = Executors.newScheduledThreadPool(2);
 
+	@Builder.Default
 	private volatile boolean isProcessing = false;
 	private ScheduledFuture<?> summaryTask;
 	private ScheduledFuture<?> spinnerTask;

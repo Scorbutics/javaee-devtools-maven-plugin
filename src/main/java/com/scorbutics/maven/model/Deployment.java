@@ -30,9 +30,11 @@ public class Deployment implements java.io.Serializable {
     private boolean redeployOnChange;
     private boolean useSourceFilesystemOnly;
 
+	@Builder.Default
 	private int depth = Integer.MIN_VALUE;
 
 	private transient boolean               computed;
+	@Builder.Default
 	private transient Map<Path, List<Deployment>> children = new HashMap<>();
 
     public Path getEnclosingTargetArchive(final Path basePath) {
