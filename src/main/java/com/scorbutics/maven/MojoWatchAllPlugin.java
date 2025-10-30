@@ -18,15 +18,12 @@ import com.scorbutics.maven.service.packaging.*;
 import com.scorbutics.maven.service.filesystem.source.FileSystemSourceReader;
 import com.scorbutics.maven.util.*;
 
-@Mojo(name = "watch-all", defaultPhase = LifecyclePhase.COMPILE, requiresDependencyResolution = ResolutionScope.COMPILE_PLUS_RUNTIME, threadSafe = true)
+@Mojo(name = "watch-all", threadSafe = true, aggregator = true)
 public class MojoWatchAllPlugin
 		extends BaseMojoDeploymentPlugin {
 
-	@Parameter(property = "verbose", defaultValue = "false")
-	private boolean verbose;
-
-	@Parameter(property = "show-progress", defaultValue = "true")
-	private boolean showProgress;
+	@Parameter(property = "watcher")
+	private WatcherConfiguration watcher;
 
 	@Override
 	protected Stream<ProjectComputer> getProjectComputers( final FileSystemSourceReader fileSystemSourceReader ) {
@@ -50,15 +47,20 @@ public class MojoWatchAllPlugin
 
 	@Override
 	protected void actOnDeployments( final Path basePath, final Path target, final FileSystemSourceReader fileSystemSourceReader, final FileSystemTargetAction fileSystemTargetAction, final Collection<Deployment> allDeployments ) {
-		final EventWatcher watcher;
+		final EventWatcher eventWatcher;
 		try {
-			watcher = new LocalFileSystemWatcher(getLog());
+			eventWatcher = new LocalFileSystemWatcher( watcher.getDebounce(), getLog());
 		} catch ( final IOException e ) {
 			throw new RuntimeException( e );
 		}
 
-		final WatcherEventLogger eventLogger = WatcherEventLogger.builder().logger( getLog() ).sourceDir( basePath ).showProgress( showProgress ).verbose( verbose ).build();
-		final RecursiveDirectoryWatcher directoryWatcher = new RecursiveDirectoryWatcher(watcher, fileSystemSourceReader, getLog());
+		final WatcherEventLogger eventLogger = WatcherEventLogger.builder()
+				.logger( getLog() )
+				.sourceDir( basePath )
+				.showProgress( watcher.isShowProgress() )
+				.verbose( watcher.isVerbose() )
+				.build();
+		final RecursiveDirectoryWatcher directoryWatcher = new RecursiveDirectoryWatcher(watcher.getThreads(), eventWatcher, fileSystemSourceReader, getLog());
 		directoryWatcher.subscribe(eventLogger);
 
 		final HotDeployer hotDeployer = new HotDeployer(directoryWatcher, fileSystemTargetAction, basePath, target, getLog());

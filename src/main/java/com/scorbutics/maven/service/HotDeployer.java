@@ -46,7 +46,7 @@ public class HotDeployer implements FileSystemEventObserver {
         pathsToDeploymentMap = hotDeployments.stream()
 				.flatMap( Deployment::flatten )
                 .flatMap(deployment ->
-                        directoryWatcher.registerRecursive(deployment.getSource(), deployment.getBase(), deployment.computeDirectSubtrees(), true)
+                        directoryWatcher.registerRoots(deployment.getSource(), deployment.getBase(), deployment.computeDirectSubtrees())
 							// Check for all exceptions during the watchers setup
 							.failAfter(e ->
 								new FileWatcherException( "Error during deployment '" + deployment + "' while watching the filesystem: ", e )

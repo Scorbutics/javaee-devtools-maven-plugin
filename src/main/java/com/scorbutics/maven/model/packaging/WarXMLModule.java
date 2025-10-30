@@ -24,12 +24,11 @@ public class WarXMLModule
     @Override
     protected Path computeSourceDirectory(final MavenProject project, final Log logger) {
 		// TODO retrieve plugin configuration from the module?
-        return ((List<Plugin>) project.getBuildPlugins()).stream()
+        return project.getBuildPlugins().stream()
                 .filter(p -> p.getArtifactId().equals(getPackaging().getPluginId()))
                 .findFirst()
                 .map(plugin -> {
                     try {
-//                        logger.info("maven-war-plugin found for project " + project.getArtifactId() + ": " + plugin.getVersion());
                         final WarXMLPluginConfiguration configuration = PluginConfigurationReader.fromPluginAndProject(WarXMLPluginConfiguration.class, plugin, project);
 
                         // TODO add flexibility thanks to extra plugin configuration?

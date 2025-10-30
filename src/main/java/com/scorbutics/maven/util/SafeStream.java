@@ -1,5 +1,7 @@
 package com.scorbutics.maven.util;
 
+import java.io.*;
+import java.nio.file.*;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -27,6 +29,10 @@ public class SafeStream<T, E extends Exception> {
 				first.stream,
 				last.stream
 		));
+	}
+
+	public static SafeStream<Path, IOException> empty() {
+		return new SafeStream<>(Stream.empty());
 	}
 
 	/**

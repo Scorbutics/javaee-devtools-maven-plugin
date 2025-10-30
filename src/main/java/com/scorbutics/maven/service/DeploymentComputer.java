@@ -26,6 +26,7 @@ public class DeploymentComputer {
 	private final FileSystemTargetAction fileSystemTargetAction;
 	private final Path basePath;
 	private final Path targetPath;
+	private final int maxDeployedModulesDepthCheck;
 
 	private static final Deployment DUMB_DEPLOYMENT = Deployment.builder().build();
 
@@ -63,8 +64,8 @@ public class DeploymentComputer {
 				.collect( Collectors.groupingBy( Deployment::getSource, Collectors.mapping( Function.identity(), Collectors.toList() ) ) );
 	}
 
-	private Map<Path, List<Deployment>> buildComputedDeploymentsMap(final MavenSession session, final boolean mapOnTargetFileSystem, final boolean isArchive) {
-		final Optional<ComputedProject> computedProject = new ProjectFileStructureAnalyzer(fileSystemTargetAction, computers, logger)
+	private Map<Path, List<Deployment>> buildComputedDeploymentsMap( final MavenSession session, final boolean mapOnTargetFileSystem, final boolean isArchive) {
+		final Optional<ComputedProject> computedProject = new ProjectFileStructureAnalyzer(maxDeployedModulesDepthCheck, fileSystemTargetAction, computers, logger)
 				.analyze( session, targetPath, mapOnTargetFileSystem);
 
 		if (!computedProject.isPresent()) {

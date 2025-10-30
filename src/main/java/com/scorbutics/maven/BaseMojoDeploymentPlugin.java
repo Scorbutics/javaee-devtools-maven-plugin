@@ -17,6 +17,8 @@ import com.scorbutics.maven.service.filesystem.source.*;
 import com.scorbutics.maven.service.filesystem.target.*;
 import com.scorbutics.maven.service.packaging.*;
 
+import lombok.*;
+
 public abstract class BaseMojoDeploymentPlugin
 		extends AbstractMojo {
 
@@ -25,6 +27,10 @@ public abstract class BaseMojoDeploymentPlugin
 
 	@Parameter(property = "deployments")
 	private List<Deployment> deployments;
+
+	@NonNull
+	@Parameter(property = "structure")
+	private StructureConfiguration structure = new StructureConfiguration();
 
 	@Parameter(defaultValue = "${session}", required = true, readonly = true)
 	private MavenSession session;
@@ -44,8 +50,6 @@ public abstract class BaseMojoDeploymentPlugin
 	public final void execute() throws MojoExecutionException {
 		final Path basePath = session.getCurrentProject().getBasedir().toPath();
 
-		Collection<Deployment> allDeployments;
-
 		// TODO support other ways to replace files like Docker CP, FTP, SFTP, etc. for target filesystems
 		final FileSystemTargetAction fileSystemTargetAction = new LocalFileSystemTargetAction();
 		final FileSystemSourceReader fileSystemSourceReader = new LocalFileSystemSourceReader();
@@ -56,11 +60,17 @@ public abstract class BaseMojoDeploymentPlugin
 
 		final DeploymentType deploymentType = getDeploymentType();
 
+		Collection<Deployment> allDeployments;
 		try {
 			final List<ProjectComputer> computers = getProjectComputers( fileSystemSourceReader ).collect( Collectors.toList() );
+			if (structure.getAutoDiscovery().isEnabled()) {
+				final int maxDeployedModulesDepthCheck =  structure.getAutoDiscovery().getMaxDeployedModulesDepthCheck();
 
-			allDeployments = new DeploymentComputer(getLog(), computers, fileSystemTargetAction, basePath, target)
-					.aggregateDeployments( session, deployments, deploymentType.isForceTargetCreation(), deploymentType.isArchive() );
+				allDeployments = new DeploymentComputer( getLog(), computers, fileSystemTargetAction, basePath, target, maxDeployedModulesDepthCheck )
+						.aggregateDeployments( session, deployments, deploymentType.isForceTargetCreation(), deploymentType.isArchive() );
+			} else {
+				allDeployments = new ArrayList<>();
+			}
 		} catch ( final IOException e ) {
 			throw new MojoExecutionException("Error computing deployments: " + e.getMessage(), e );
 		}

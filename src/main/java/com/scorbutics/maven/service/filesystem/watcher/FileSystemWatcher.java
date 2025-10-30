@@ -16,6 +16,9 @@ import lombok.*;
 public class FileSystemWatcher implements EventWatcher  {
     private final WatchService watcher;
 
+	private static final int MAX_DEBOUNCE_WINDOW_MS = 10000;
+	private static final int PRODUCER_EVENT_OFFER_TIMEOUT_MS = 100;
+
 	@Getter
 	private final FileSystemEventObservableQueue technicalConsumerEventQueue = new FileSystemEventObservableQueue();
 	@Getter
@@ -23,9 +26,11 @@ public class FileSystemWatcher implements EventWatcher  {
     private final BlockingQueue<PathEvent>       producerEventQueue;
     private boolean                              started;
     private final Log logger;
+	private final int debounceWindowMs;
 
-    public FileSystemWatcher(final int queueCapacity, final WatchService watcher, final Log logger) {
+    public FileSystemWatcher(final int debounceWindowMs, final int queueCapacity, final WatchService watcher, final Log logger) {
         this.watcher = watcher;
+		this.debounceWindowMs = Math.min( Math.max( debounceWindowMs, 10), MAX_DEBOUNCE_WINDOW_MS ) ;
         // Bounded queue with your chosen capacity
         this.producerEventQueue = new ArrayBlockingQueue<>(queueCapacity);
         this.logger = logger;
@@ -38,11 +43,11 @@ public class FileSystemWatcher implements EventWatcher  {
         }
         this.started = true;
 
-        final ExecutorService processorThreads = Executors.newFixedThreadPool(processorThreadCount);
+        final ExecutorService processorThreads = Executors.newSingleThreadExecutor();
         final ExecutorService watcherThread = Executors.newSingleThreadExecutor();
         // Debounce window: adjust based on your typical "bunch" duration
         final FileEventCoalescer coalescer = new FileEventCoalescer(
-                Duration.ofMillis(400),
+                Duration.ofMillis(debounceWindowMs),
                 events -> processorThreads.submit(() -> {
 					events.forEach(event ->
 						dispatchEventToQueue(functionalConsumerEventQueue, event.getPath(), event.getKind())
@@ -82,12 +87,10 @@ public class FileSystemWatcher implements EventWatcher  {
 		this.functionalConsumerEventQueue.unsubscribe(observer);
 	}
 
+	@SafeVarargs
 	@Override
-    public void register(final Path path, final WatchEvent.Kind<Path>... entries) throws IOException {
-        path.register(watcher,
-                StandardWatchEventKinds.ENTRY_CREATE,
-                StandardWatchEventKinds.ENTRY_DELETE,
-                StandardWatchEventKinds.ENTRY_MODIFY);
+    public final void register( final Path path, final WatchEvent.Kind<Path>... entries ) throws IOException {
+        path.register(watcher, entries);
     }
 
     @Override
@@ -135,7 +138,7 @@ public class FileSystemWatcher implements EventWatcher  {
 	public void offerEvent(final PathEvent event) {
         // Non-blocking offer with timeout
         try {
-			if (!producerEventQueue.offer( event, 100, TimeUnit.MILLISECONDS)) {
+			if (!producerEventQueue.offer( event, PRODUCER_EVENT_OFFER_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
 				logger.warn("Event queue is full, dropping event: " + event);
 			}
 		} catch (final InterruptedException e) {

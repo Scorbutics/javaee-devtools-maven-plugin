@@ -17,6 +17,8 @@ import java.util.stream.*;
 @RequiredArgsConstructor
 public class FileEventCoalescer {
 
+	private static final int SCHEDULER_TERMINATION_TIMEOUT_S = 5;
+
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
 	// Queue maintains insertion order
@@ -42,7 +44,8 @@ public class FileEventCoalescer {
 		// Merge or create event
 		pendingEvents.compute(normalizedPath, (k, existing) -> {
 			if (existing != null) {
-				existing.merge(event.kind);
+				// TODO fix
+				//return existing.merge(event.kind);
 				return existing;
 			}
 			return new CoalescedEvent(normalizedPath, event.kind);
@@ -119,7 +122,7 @@ public class FileEventCoalescer {
     public void shutdown() {
         scheduler.shutdown();
         try {
-            if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
+            if (!scheduler.awaitTermination(SCHEDULER_TERMINATION_TIMEOUT_S, TimeUnit.SECONDS)) {
                 scheduler.shutdownNow();
             }
         } catch (final InterruptedException e) {

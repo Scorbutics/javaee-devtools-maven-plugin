@@ -8,8 +8,8 @@ import java.nio.file.*;
 
 public class LocalFileSystemWatcher extends FileSystemWatcher {
 
-    public LocalFileSystemWatcher(final Log logger) throws IOException {
-        super(32768, FileSystems.getDefault().newWatchService(), logger);
+    public LocalFileSystemWatcher(final int debounceWindowMs, final Log logger) throws IOException {
+        super(debounceWindowMs, 32768, FileSystems.getDefault().newWatchService(), logger);
     }
 
 }

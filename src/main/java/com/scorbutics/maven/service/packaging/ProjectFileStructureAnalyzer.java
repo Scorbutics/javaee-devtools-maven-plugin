@@ -19,16 +19,19 @@ import java.util.stream.Stream;
 
 public class ProjectFileStructureAnalyzer {
 
-	private static final int MAX_DEPTH_RECURSIVE_CHECK_ON_DEPLOYED_MODULES = 3;
+	private static final int MAX_DEPTH_RECURSIVE_CHECK_ON_DEPLOYED_MODULES = 20;
+	private static final int MIN_DEPTH_RECURSIVE_CHECK_ON_DEPLOYED_MODULES = 2;
 
     private final Collection<ProjectComputer> computers;
     private final RecursiveDirectoryWalker recursiveDirectoryWalker;
     private final Log logger;
+	private final int maxDeployedModulesDepthCheck;
 
-    public ProjectFileStructureAnalyzer(final FileSystemTargetAction fileSystemTargetAction, final Collection<ProjectComputer> computers, final Log logger) {
+    public ProjectFileStructureAnalyzer( final int maxDeployedModulesDepthCheck, final FileSystemTargetAction fileSystemTargetAction, final Collection<ProjectComputer> computers, final Log logger) {
         this.recursiveDirectoryWalker = new RecursiveDirectoryWalker(fileSystemTargetAction);
         this.computers = computers;
         this.logger = logger;
+		this.maxDeployedModulesDepthCheck = Math.min( Math.max( maxDeployedModulesDepthCheck, MIN_DEPTH_RECURSIVE_CHECK_ON_DEPLOYED_MODULES), MAX_DEPTH_RECURSIVE_CHECK_ON_DEPLOYED_MODULES ) ;
     }
 
     public Optional<ComputedProject> analyze(final MavenSession session, final Path target, final boolean shouldMapOnTargetFilesystem) {
@@ -48,7 +51,7 @@ public class ProjectFileStructureAnalyzer {
 
     private List<ComputedModule> recursiveCheckDeployedModules(final List<ComputedModule> modulesToMatch, final Path currentPath, final int depth) {
 
-		if ( depth > MAX_DEPTH_RECURSIVE_CHECK_ON_DEPLOYED_MODULES ) {
+		if ( depth > maxDeployedModulesDepthCheck ) {
 			logger.debug( "Maximum depth reached when checking deployed modules at path: " + currentPath );
 			return new ArrayList<>();
 		}

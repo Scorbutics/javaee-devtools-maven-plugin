@@ -15,10 +15,11 @@ import java.nio.file.attribute.*;
 import java.util.*;
 import java.util.stream.*;
 
+import lombok.*;
+
 public class RecursiveDirectoryWatcher implements FileSystemEventObserver {
 
-	// TODO could be fine tuned? or exposed to configuration?
-	private static final int PROCESSOR_THREAD_COUNT = 4;
+	private static final int MAX_PROCESSOR_THREAD_COUNT = 4;
 
 	private final FileSystemEventObservableQueue queue = new FileSystemEventObservableQueue();
     private final EventWatcher watcher;
@@ -26,27 +27,29 @@ public class RecursiveDirectoryWatcher implements FileSystemEventObserver {
     private final RecursiveDirectoryWalker recursiveDirectoryWalker;
     private final Log logger;
     private final Map<Path, Path> registeredRootPaths = new HashMap<>();
+	private final Set<Path> excludedSubtrees = new HashSet<>();
+	private final Set<Path> intermediatePaths = new HashSet<>();
+	private final int processorThreadCount;
 
-    public RecursiveDirectoryWatcher(final EventWatcher watcher, final FileSystemSourceReader fileSystemSourceReader, final Log logger) {
+    public RecursiveDirectoryWatcher(final int processorThreadCount, final EventWatcher watcher, final FileSystemSourceReader fileSystemSourceReader, final Log logger) {
         this.watcher = watcher;
+		this.processorThreadCount = Math.min( Math.max( processorThreadCount, 1), MAX_PROCESSOR_THREAD_COUNT );
 		watcher.subscribeTechnicalFileEvent(this);
         this.fileSystemSourceReader = fileSystemSourceReader;
         this.recursiveDirectoryWalker = new RecursiveDirectoryWalker(this.fileSystemSourceReader);
         this.logger = logger;
     }
 
-	// TODO ugly method, refactor
-    public SafeStream<Path, IOException> registerRecursive(final Path sourcePath, final Path basePath, final Set<Path> excludedSubtrees, final boolean isRoot) throws FileWatcherException {
-		if (isRoot) {
-        	final Path realRootPath = basePath != null ? basePath : sourcePath;
-            registeredRootPaths.put(sourcePath, realRootPath);
-        }
+	public SafeStream<Path, IOException> registerRoots(final Path sourcePath, final Path basePath, final Set<Path> excludedSubtrees) throws FileWatcherException {
+		registeredRootPaths.put(sourcePath, basePath != null ? basePath : sourcePath);
+		this.excludedSubtrees.addAll( excludedSubtrees );
+		logger.debug( "Registering root path for watching: " + sourcePath + " (base: " + basePath + ")" );
 
-		final Stream<Path> intermediatePaths = basePath == null ? Stream.of() : PathRangeBuilder.range(basePath, sourcePath);
+		final List<Path> intermediatePaths = (basePath == null ? Stream.<Path>of() : PathRangeBuilder.range(basePath, sourcePath)).collect( Collectors.toList());
+
 
 		// Watch every subfolder in the source directory, and all intermediate paths up to the base path
-		final SafeStream<Path, IOException> intermediate = SafeStream.<Path, IOException> of(intermediatePaths)
-				.distinct()
+		final SafeStream<Path, IOException> intermediate = SafeStream.<Path, IOException> of(intermediatePaths.stream())
 				.tryMap(path -> {
 					watcher.register(path,
 							StandardWatchEventKinds.ENTRY_CREATE,
@@ -55,39 +58,91 @@ public class RecursiveDirectoryWatcher implements FileSystemEventObserver {
 					return path;
 				});
 
-		final List<Path> subdirectories = new ArrayList<>();
+		this.intermediatePaths.addAll( intermediatePaths );
 
-		this.recursiveDirectoryWalker.walk(logger, sourcePath, Integer.MAX_VALUE, excludedSubtrees, new SimpleFileVisitor<Path>() {
+		if (basePath != null) {
+			final Set<Path> allIntermediates = Stream.concat( intermediatePaths.stream(), Stream.of( sourcePath ) ).collect( Collectors.toSet() );
+			this.excludedSubtrees.addAll( this.recursiveDirectoryWalker.readRecursive( basePath, allIntermediates.size(), null)
+					.filter( path -> !allIntermediates.contains( path ) )
+					.collect( Collectors.toSet() )
+			);
+		}
+		logger.debug( "Excluding subtrees from watching: " + this.excludedSubtrees );
+
+		final List<Path> subdirectories = new ArrayList<>();
+		this.recursiveDirectoryWalker.walk(logger, sourcePath, Integer.MAX_VALUE, this.excludedSubtrees, new SimpleFileVisitor<Path>() {
 			@Override
-			public FileVisitResult preVisitDirectory(final Path dir, final BasicFileAttributes attrs) {
+			public @NonNull FileVisitResult preVisitDirectory(final @NonNull Path dir, final @NonNull BasicFileAttributes attrs) {
 				try {
-					subdirectories.add(dir);
 					if (fileSystemSourceReader.exists(dir)) {
+						subdirectories.add(dir);
 						watcher.register( dir,
 								StandardWatchEventKinds.ENTRY_CREATE,
 								StandardWatchEventKinds.ENTRY_DELETE,
 								StandardWatchEventKinds.ENTRY_MODIFY );
 					}
 				} catch (final IOException e) {
-					logger.warn("Error while registering directory for watching: " + e.getMessage(), e);
+					logger.warn("Error while registering root directory for watching: " + e.getMessage() + " " + e.getClass().getSimpleName());
+					return FileVisitResult.CONTINUE;
+				}
+				return FileVisitResult.CONTINUE;
+			}
+		});
+		return SafeStream.concat( intermediate, SafeStream.of( subdirectories.stream() ) );
+	}
+
+    private SafeStream<Path, IOException> registerRecursive(final Path sourcePath) throws FileWatcherException {
+
+		if ( excludedSubtrees.contains( sourcePath ) ) {
+			logger.debug("Discarding directory " + sourcePath);
+			return SafeStream.empty();
+		}
+
+		if (this.intermediatePaths.contains( sourcePath )) {
+			logger.debug( "Registering single intermediate path for watching: " + sourcePath );
+			try {
+				watcher.register( sourcePath,
+						StandardWatchEventKinds.ENTRY_CREATE,
+						StandardWatchEventKinds.ENTRY_DELETE,
+						StandardWatchEventKinds.ENTRY_MODIFY );
+				return SafeStream.of( Stream.of( sourcePath ) );
+			} catch ( final IOException e ) {
+				logger.warn("Error while registering intermediate directory for watching: " + e.getMessage() + " " + e.getClass().getSimpleName());
+				return SafeStream.empty();
+			}
+		}
+
+		final List<Path> subdirectories = new ArrayList<>();
+		this.recursiveDirectoryWalker.walk(logger, sourcePath, Integer.MAX_VALUE, excludedSubtrees, new SimpleFileVisitor<Path>() {
+			@Override
+			public @NonNull FileVisitResult preVisitDirectory(final @NonNull Path dir, final @NonNull BasicFileAttributes attrs) {
+				try {
+					if (fileSystemSourceReader.exists(dir)) {
+						subdirectories.add(dir);
+						logger.debug("Registering directory " + dir);
+						watcher.register( dir,
+								StandardWatchEventKinds.ENTRY_CREATE,
+								StandardWatchEventKinds.ENTRY_DELETE,
+								StandardWatchEventKinds.ENTRY_MODIFY );
+					}
+				} catch (final IOException e) {
+					logger.warn("Error while registering directory for watching: " + e.getMessage() + " " + e.getClass().getSimpleName());
 					return FileVisitResult.CONTINUE;
 				}
 				return FileVisitResult.CONTINUE;
 			}
 
 			@Override
-			public FileVisitResult visitFile(final Path file, final BasicFileAttributes attrs ) {
+			public @NonNull FileVisitResult visitFile(final @NonNull Path file, final @NonNull BasicFileAttributes attrs ) {
 				// Notify about potential skipped files
-				if (!isRoot) {
-					//logger.info( "Notifying about existing file: " + file.toString() );
-					watcher.offerEvent( PathEvent.builder()
-							.path(file)
-							.kind(StandardWatchEventKinds.ENTRY_CREATE).build() );
-				}
+				watcher.offerEvent( PathEvent.builder()
+						.path(file)
+						.kind(StandardWatchEventKinds.ENTRY_CREATE).build() );
+
 				return FileVisitResult.CONTINUE;
 			}
 		});
-		return SafeStream.concat( intermediate, SafeStream.of( subdirectories.stream() ) );
+		return SafeStream.of( subdirectories.stream() );
     }
 
     public void waitProduceFileEvents() throws InterruptedException {
@@ -107,7 +162,7 @@ public class RecursiveDirectoryWatcher implements FileSystemEventObserver {
     }
 
     public void startConsumerThread() {
-        this.watcher.startConsuming(PROCESSOR_THREAD_COUNT);
+        this.watcher.startConsuming(processorThreadCount);
     }
 
 	@Override
@@ -117,7 +172,7 @@ public class RecursiveDirectoryWatcher implements FileSystemEventObserver {
 			return;
 		}
 
-		final boolean success = registerRecursive( fullPath, null, null, false)
+		final boolean success = registerRecursive(fullPath)
 				.logFailures(e -> logger.warn("Error while registering new directory for watching: " + e.getMessage()))
 				.allSuccess();
 		if (!success) {

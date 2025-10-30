@@ -28,7 +28,7 @@ public class WatcherEventLogger implements FileSystemEventObserver {
 	private final Path sourceDir;
 
 	private final Map<Path, FileEvent>     eventAccumulator = new ConcurrentHashMap<>();
-	private final ScheduledExecutorService scheduler        = Executors.newScheduledThreadPool(2);
+	private final ScheduledExecutorService scheduler        = Executors.newSingleThreadScheduledExecutor();
 
 	@Builder.Default
 	private volatile boolean isProcessing = false;
@@ -48,6 +48,7 @@ public class WatcherEventLogger implements FileSystemEventObserver {
 	}
 
 	private void onFileEvent( final WatchEvent.Kind<?> kind, final Path fullPathFile) {
+		// TODO thread-safety?
 		final Path relativePath = sourceDir.relativize(fullPathFile);
 		eventAccumulator.put(relativePath, new FileEvent(kind, relativePath));
 
@@ -121,6 +122,7 @@ public class WatcherEventLogger implements FileSystemEventObserver {
 		// Display summary
 		displaySummary();
 
+		logger.info( "End of processing batch." );
 		eventAccumulator.clear();
 	}
 
@@ -139,7 +141,9 @@ public class WatcherEventLogger implements FileSystemEventObserver {
 			// Verbose: show file list
 			logger.info(" -> Processed " + total + " files:");
 
-			PathTreePrinter.prettyPrint(logger, event -> event.path, this::prettyPrintEvent , eventAccumulator.values());
+			PathTreePrinter.prettyPrint(logger, event -> event.path, this::prettyPrintEvent , eventAccumulator.values().stream().limit( 100 ).collect( Collectors.toList()) );
+			logger.info(" ... and " + (total - Math.min(total, 100)) + " more files.");
+
 		} else {
 			final Map<WatchEvent.Kind<?>, Long> counts = eventAccumulator.values().stream()
 					.collect( Collectors.groupingBy(
