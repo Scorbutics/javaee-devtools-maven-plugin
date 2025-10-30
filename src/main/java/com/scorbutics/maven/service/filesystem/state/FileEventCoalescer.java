@@ -44,9 +44,7 @@ public class FileEventCoalescer {
 		// Merge or create event
 		pendingEvents.compute(normalizedPath, (k, existing) -> {
 			if (existing != null) {
-				// TODO fix
-				//return existing.merge(event.kind);
-				return existing;
+				return existing.merge(event.kind);
 			}
 			return new CoalescedEvent(normalizedPath, event.kind);
 		});
@@ -74,11 +72,11 @@ public class FileEventCoalescer {
 					.filter(Objects::nonNull)
 					.filter(event -> !event.isNoOp())
 					.forEach(event -> {
-						inQueue.remove(event.path);
 						final List<CoalescedEvent> grouped = groupRelatedEvents(event);
 						eventProcessor.accept( grouped.stream() );
 					});
 			eventOrder.clear();
+			inQueue.clear();
 		}
     }
 
@@ -86,20 +84,20 @@ public class FileEventCoalescer {
 		final List<CoalescedEvent> related = new ArrayList<>();
 		related.add(triggerEvent);
 
-		Path current = triggerEvent.path.getParent();
-		while (current != null) {
+		Path parentPath = triggerEvent.getPath().getParent();
+		while (parentPath != null) {
 			// Check for parent directory deletions that subsume this event
-			final CoalescedEvent parentEvent = pendingEvents.get(current);
+			final CoalescedEvent parentEvent = pendingEvents.get(parentPath);
 			if (parentEvent != null && parentEvent.isDeletion()) {
-				logger.debug("Parent deletion event found for path: " + current + ", subsuming event for path: " + triggerEvent.path);
+				logger.debug("Parent deletion event found for path: " + parentPath + ", subsuming event for path: " + triggerEvent.getPath());
 				// Parent deletion subsumes child events
-				pendingEvents.remove(triggerEvent.path);
+				pendingEvents.remove(triggerEvent.getPath());
 				related.clear();
 				related.add(parentEvent);
 				break;
 			}
 
-			current = current.getParent();
+			parentPath = parentPath.getParent();
 		}
 
 		// Check for child events that can be subsumed
@@ -107,10 +105,10 @@ public class FileEventCoalescer {
 			final Iterator<Map.Entry<Path, CoalescedEvent>> iter = pendingEvents.entrySet().iterator();
 			while (iter.hasNext()) {
 				final Map.Entry<Path, CoalescedEvent> entry = iter.next();
-				if (entry.getKey().startsWith(triggerEvent.path) &&
-						!entry.getKey().equals(triggerEvent.path)) {
+				if (entry.getKey().startsWith(triggerEvent.getPath()) &&
+						!entry.getKey().equals(triggerEvent.getPath())) {
 					// This is a child event that's subsumed by parent deletion
-					logger.debug("Child event for path: " + entry.getKey() + " subsumed by parent deletion for path: " + triggerEvent.path);
+					logger.debug("Child event for path: " + entry.getKey() + " subsumed by parent deletion for path: " + triggerEvent.getPath());
 					iter.remove();
 				}
 			}

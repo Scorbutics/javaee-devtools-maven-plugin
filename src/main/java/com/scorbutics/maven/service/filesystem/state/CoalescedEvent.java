@@ -1,6 +1,7 @@
 package com.scorbutics.maven.service.filesystem.state;
 
-import lombok.Getter;
+import lombok.*;
+
 import org.apache.maven.plugin.logging.Log;
 
 import java.nio.file.Path;
@@ -14,12 +15,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+@Value
 public class CoalescedEvent {
-	@Getter
-    final Path               path;
-	@Getter
-	final WatchEvent.Kind<?> kind; // Immutable!
-	final Instant            timestamp;
+
+    Path               path;
+	WatchEvent.Kind<?> kind;
+	Instant            timestamp;
 
     CoalescedEvent(final Path path, final WatchEvent.Kind<?> kind) {
         this.path = path;

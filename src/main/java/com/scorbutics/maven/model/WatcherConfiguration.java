@@ -17,5 +17,5 @@ public class WatcherConfiguration {
 	private int threads = 2;
 
 	@Parameter(property = "debounce")
-	private int debounce = 400;
+	private int debounce = 200;
 }
