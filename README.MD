@@ -135,9 +135,9 @@ mvn javaee-devtools:watch-all
 - Include all features of `watch-web`
 - Clean/installing is still supported because intermediate directories are watched continuously
 - Triggers deployment after no event detected for a debounce period
+- Detect Maven end of build automatically and trigger copying META-INF data.
 
 On the TODO list:
-- Detect Maven end of build automatically and trigger copying META-INF data.
 - Triggers deployment only after Maven build completes
 
 ## Architectural Highlights

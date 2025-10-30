@@ -21,7 +21,10 @@ public class DeploymentBanner {
 				.sorted(Comparator.comparing(Deployment::isComputed).thenComparing( Deployment::getPackaging, Comparator.nullsFirst( Packaging::compareTo ) ))
 				.flatMap(deployment -> {
 					final Stream<String> children = printDeploymentsLines( deployment.getChildren().values().stream().flatMap( List::stream ).collect( Collectors.toList()), basePath, targetPath, indent + indent );
-					return Stream.concat( Stream.of(indent + printLine(deployment, basePath, targetPath)), children );
+					if ( deployment.isEnabled() ) {
+						return Stream.concat( Stream.of(indent + printLine(deployment, basePath, targetPath)), children );
+					}
+					return children;
 				});
 	}
 

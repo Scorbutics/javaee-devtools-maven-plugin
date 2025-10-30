@@ -23,6 +23,9 @@ public class Deployment implements java.io.Serializable {
     private Path target;
 
 	private Path base;
+	private Path archive;
+
+	private boolean enabled = true;
 
 	private Packaging packaging;
 
@@ -31,7 +34,7 @@ public class Deployment implements java.io.Serializable {
     private boolean useSourceFilesystemOnly;
 
 	@Builder.Default
-	private int depth = Integer.MIN_VALUE;
+	private transient int depth = Integer.MIN_VALUE;
 
 	private transient boolean               computed;
 	@Builder.Default

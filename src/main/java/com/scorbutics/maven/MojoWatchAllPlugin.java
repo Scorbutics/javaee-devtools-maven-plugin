@@ -11,9 +11,11 @@ import com.scorbutics.maven.model.*;
 import org.apache.maven.plugins.annotations.*;
 
 import com.scorbutics.maven.service.*;
-import com.scorbutics.maven.service.filesystem.local.*;
+import com.scorbutics.maven.service.event.observer.*;
+import com.scorbutics.maven.service.event.watcher.compilation.*;
+import com.scorbutics.maven.service.event.watcher.files.*;
+import com.scorbutics.maven.service.filesystem.*;
 import com.scorbutics.maven.service.filesystem.target.*;
-import com.scorbutics.maven.service.filesystem.watcher.*;
 import com.scorbutics.maven.service.packaging.*;
 import com.scorbutics.maven.service.filesystem.source.FileSystemSourceReader;
 import com.scorbutics.maven.util.*;
@@ -61,10 +63,15 @@ public class MojoWatchAllPlugin
 				.verbose( watcher.isVerbose() )
 				.build();
 		final RecursiveDirectoryWatcher directoryWatcher = new RecursiveDirectoryWatcher(watcher.getThreads(), eventWatcher, fileSystemSourceReader, getLog());
-		directoryWatcher.subscribe(eventLogger);
+		directoryWatcher.subscribeFunctional(eventLogger);
+
+		final CompilationEventWatcher compilationEventWatcher = new CompilationEventWatcher(getLog(), fileSystemSourceReader, allDeployments);
+		directoryWatcher.subscribeTechnical(compilationEventWatcher);
+		final FileLockCheckerAndRetryer fileLockCheckerAndRetryer = new FileLockCheckerAndRetryer(fileSystemTargetAction, fileSystemSourceReader, getLog());
+		final MavenMetaInfIntegration mavenMetaInfIntegration = new MavenMetaInfIntegration(fileSystemSourceReader, fileSystemTargetAction, fileLockCheckerAndRetryer, allDeployments, getLog());
+		compilationEventWatcher.subscribe( mavenMetaInfIntegration );
 
 		final HotDeployer hotDeployer = new HotDeployer(directoryWatcher, fileSystemTargetAction, basePath, target, getLog());
-
 		hotDeployer.registerAll(allDeployments);
 
 		getLog().info("Watching...");

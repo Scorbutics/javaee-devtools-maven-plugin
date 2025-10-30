@@ -47,6 +47,12 @@ public class ComputedModule {
 		return finalName + "." + extension;
 	}
 
+	public Path getBuildOutputDirectory() {
+		return project.getBuild().getDirectory() != null ?
+				Paths.get(project.getBuild().getDirectory()) :
+				project.getBasedir().toPath().resolve("target");
+	}
+
 	public ComputedModule rebuildEachModule( final Function<ComputedModule, ComputedModuleBuilder> mapper ) {
 		return mapper.apply(this).children(
 			children.stream()

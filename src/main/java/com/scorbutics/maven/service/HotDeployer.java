@@ -1,8 +1,9 @@
 package com.scorbutics.maven.service;
 
 import com.scorbutics.maven.model.Deployment;
-import com.scorbutics.maven.service.filesystem.FileSystemCommonActions;
-import com.scorbutics.maven.service.filesystem.watcher.*;
+import com.scorbutics.maven.service.event.watcher.files.*;
+import com.scorbutics.maven.service.event.watcher.files.observer.*;
+import com.scorbutics.maven.service.filesystem.*;
 
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.maven.plugin.logging.Log;
@@ -33,9 +34,9 @@ public class HotDeployer implements FileSystemEventObserver {
 		void apply(final Path directory, final Path path, FileLockCheckerAndRetryer fileLockCheckerAndRetryer, FileSystemCommonActions fsActions) throws IOException, InterruptedException;
 	}
 
-    private Map<Path, DeploymentPath>       pathsToDeploymentMap;
+    private       Map<Path, DeploymentPath> pathsToDeploymentMap;
     private final RecursiveDirectoryWatcher directoryWatcher;
-    private final FileSystemTargetAction fileSystemTargetAction;
+    private final FileSystemTargetAction    fileSystemTargetAction;
     private final Path basePath;
     private final Path targetBasePath;
     private final Log             logger;
@@ -45,6 +46,7 @@ public class HotDeployer implements FileSystemEventObserver {
 
         pathsToDeploymentMap = hotDeployments.stream()
 				.flatMap( Deployment::flatten )
+				.filter( Deployment::isEnabled )
                 .flatMap(deployment ->
                         directoryWatcher.registerRoots(deployment.getSource(), deployment.getBase(), deployment.computeDirectSubtrees())
 							// Check for all exceptions during the watchers setup
@@ -63,7 +65,7 @@ public class HotDeployer implements FileSystemEventObserver {
 							throw new FileWatcherException("Multiple deployments configured for the same path: " + deployment1 + " and " + deployment2);
 						}));
 
-		this.directoryWatcher.subscribe(this);
+		this.directoryWatcher.subscribeFunctional(this);
         this.directoryWatcher.startConsumerThread();
     }
 

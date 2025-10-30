@@ -1,24 +1,17 @@
 package com.scorbutics.maven;
 
-import java.io.*;
 import java.nio.file.*;
 import java.util.*;
-import java.util.function.*;
 import java.util.stream.*;
 
-import org.apache.maven.execution.*;
 import org.apache.maven.plugin.*;
 import org.apache.maven.plugins.annotations.*;
 import org.apache.maven.plugins.annotations.Mojo;
-import org.apache.maven.project.*;
 
 import com.scorbutics.maven.model.*;
-import com.scorbutics.maven.service.*;
 import com.scorbutics.maven.service.filesystem.*;
-import com.scorbutics.maven.service.filesystem.local.*;
 import com.scorbutics.maven.service.filesystem.source.*;
 import com.scorbutics.maven.service.filesystem.target.*;
-import com.scorbutics.maven.service.filesystem.watcher.*;
 import com.scorbutics.maven.service.packaging.*;
 import com.scorbutics.maven.util.*;
 

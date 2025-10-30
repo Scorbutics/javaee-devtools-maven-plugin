@@ -95,13 +95,7 @@ public abstract class BaseMojoDeploymentPlugin
 							.build();
 				} )
 				// Post-order filtering: first filter children, then parent, because children may match even if parent does not
-				.flatMap( deployment -> {
-					if ( deploymentPredicate.test( deployment ) ) {
-						return Stream.of( deployment );
-					} else {
-						return deployment.getChildren().values().stream().flatMap( List::stream );
-					}
-				} );
+				.flatMap( deployment -> Stream.of( deployment.toBuilder().enabled( deploymentPredicate.test( deployment ) ).build() ) );
 	}
 
 	protected abstract Stream<ProjectComputer> getProjectComputers(FileSystemSourceReader fileSystemSourceReader);

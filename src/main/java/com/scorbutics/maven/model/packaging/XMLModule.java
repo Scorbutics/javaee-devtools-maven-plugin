@@ -10,7 +10,8 @@ import org.apache.maven.project.MavenProject;
 
 import javax.xml.bind.annotation.XmlAccessType;
 import javax.xml.bind.annotation.XmlAccessorType;
-import java.nio.file.Path;
+
+import java.nio.file.*;
 import java.util.*;
 
 @AllArgsConstructor

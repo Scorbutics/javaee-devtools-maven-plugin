@@ -56,6 +56,7 @@ public class DeploymentComputer {
 							.packaging(module.getPackaging())
 							.children(children)
 							.unpack(isArchive)
+							.archive( module.getBuildOutputDirectory().resolve( module.getFinalNameWithExtension() )  )
 							.base(module.getBaseDirectory())
 							.target(module.getDeployedDirectory())
 							.redeployOnChange(module.isRedeployOnChange())

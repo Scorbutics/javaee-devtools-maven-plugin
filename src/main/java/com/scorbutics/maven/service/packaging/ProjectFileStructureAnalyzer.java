@@ -3,19 +3,15 @@ package com.scorbutics.maven.service.packaging;
 import com.scorbutics.maven.model.packaging.*;
 import com.scorbutics.maven.model.packaging.computed.*;
 import com.scorbutics.maven.service.filesystem.RecursiveDirectoryWalker;
-import com.scorbutics.maven.service.filesystem.source.FileSystemSourceReader;
 import com.scorbutics.maven.service.filesystem.target.FileSystemTargetAction;
 import com.scorbutics.maven.util.*;
 
 import org.apache.maven.execution.*;
-import org.apache.maven.model.Plugin;
 import org.apache.maven.plugin.logging.Log;
-import org.apache.maven.project.MavenProject;
 
 import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class ProjectFileStructureAnalyzer {
 

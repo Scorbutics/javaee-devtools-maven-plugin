@@ -10,7 +10,7 @@ import java.util.stream.*;
 
 import org.apache.maven.plugin.logging.*;
 
-import com.scorbutics.maven.service.filesystem.watcher.*;
+import com.scorbutics.maven.service.event.watcher.files.observer.*;
 import com.scorbutics.maven.util.path.*;
 
 import lombok.*;
