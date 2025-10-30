@@ -18,6 +18,8 @@ import lombok.*;
 @Builder
 public class WatcherEventLogger implements FileSystemEventObserver {
 
+	private static final int MAX_VERBOSE_PATH_LENGTH = 200;
+
 	private boolean verbose;
 	private boolean showProgress;
 
@@ -27,13 +29,21 @@ public class WatcherEventLogger implements FileSystemEventObserver {
 	@NonNull
 	private final Path sourceDir;
 
-	private final Map<Path, FileEvent>     eventAccumulator = new ConcurrentHashMap<>();
-	private final ScheduledExecutorService scheduler        = Executors.newSingleThreadScheduledExecutor();
+	private static final Comparator<Path> PATH_COMPARATOR = Comparator.comparingInt( Path::getNameCount )
+			.thenComparing(Path::toString);
 
-	@Builder.Default
-	private volatile boolean isProcessing = false;
-	private ScheduledFuture<?> summaryTask;
-	private ScheduledFuture<?> spinnerTask;
+	// Thread-safe sorted map
+	private final ConcurrentNavigableMap<Path, FileEvent> eventAccumulator = new ConcurrentSkipListMap<>(
+			PATH_COMPARATOR
+	);
+
+	private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+
+	// Atomic flag for processing state
+	private final AtomicBoolean isProcessing = new AtomicBoolean(false);
+
+	private volatile ScheduledFuture<?> summaryTask;
+	private volatile ScheduledFuture<?> spinnerTask;
 
 	private final Statistics stats = new Statistics();
 
@@ -48,11 +58,11 @@ public class WatcherEventLogger implements FileSystemEventObserver {
 	}
 
 	private void onFileEvent( final WatchEvent.Kind<?> kind, final Path fullPathFile) {
-		// TODO thread-safety?
 		final Path relativePath = sourceDir.relativize(fullPathFile);
 		eventAccumulator.put(relativePath, new FileEvent(kind, relativePath));
 
-		if (!isProcessing) {
+		// Atomic check-and-set to start processing
+		if (isProcessing.compareAndSet(false, true)) {
 			startProcessing();
 		}
 
@@ -60,8 +70,6 @@ public class WatcherEventLogger implements FileSystemEventObserver {
 	}
 
 	private void startProcessing() {
-		isProcessing = true;
-
 		if (showProgress && isInteractiveTerminal()) {
 			spinnerTask = scheduler.scheduleAtFixedRate(
 					this::updateSpinner,
@@ -73,7 +81,7 @@ public class WatcherEventLogger implements FileSystemEventObserver {
 	}
 
 	private void updateSpinner() {
-		if (!isProcessing || !showProgress ) return;
+		if (!isProcessing.get() || !showProgress ) return;
 
 		final String[] frames = {"|", "/", "-", "\\"};
 		final int frame = (int) ((System.currentTimeMillis() / 150) % frames.length);
@@ -88,10 +96,13 @@ public class WatcherEventLogger implements FileSystemEventObserver {
 	}
 
 	private void resetSummaryTimer() {
-		if (summaryTask != null) {
-			summaryTask.cancel(false);
+		// Cancel previous task if exists
+		final ScheduledFuture<?> oldTask = summaryTask;
+		if (oldTask != null) {
+			oldTask.cancel(false);
 		}
 
+		// Schedule new summary task
 		summaryTask = scheduler.schedule(
 				this::finishProcessing,
 				1000,
@@ -100,61 +111,75 @@ public class WatcherEventLogger implements FileSystemEventObserver {
 	}
 
 	private void finishProcessing() {
-		isProcessing = false;
-
-		if (spinnerTask != null) {
-			spinnerTask.cancel(false);
+		// Stop spinner first
+		final ScheduledFuture<?> currentSpinnerTask = spinnerTask;
+		if (currentSpinnerTask != null) {
+			currentSpinnerTask.cancel(false);
 		}
 
-		if (eventAccumulator.isEmpty()) {
+		// Atomically snapshot and clear the accumulator
+		// This prevents losing events that arrive during processing
+		final Map<Path, FileEvent> eventsToProcess = new LinkedHashMap<>(eventAccumulator);
+
+		// Remove only the events we're about to process
+		eventsToProcess.keySet().forEach(eventAccumulator::remove);
+
+		// Reset processing flag BEFORE checking isEmpty
+		// This allows new events to restart processing
+		isProcessing.set(false);
+
+		if (eventsToProcess.isEmpty()) {
 			return;
 		}
 
 		// Update statistics
-		stats.addBatch(eventAccumulator.values());
+		stats.addBatch(eventsToProcess.values());
 
 		// Clear spinner line
 		if (showProgress && isInteractiveTerminal()) {
-			System.out.print("\r" + "                                                        " + "\r"); // Clear line
+			System.out.print("\r" + "                                                        " + "\r");
 			System.out.flush();
 		}
 
-		// Display summary
-		displaySummary();
+		// Display summary with the snapshot
+		displaySummary(eventsToProcess);
 
-		logger.info( "End of processing batch." );
-		eventAccumulator.clear();
 	}
 
 	/**
 	 * Check if running in interactive terminal
 	 */
 	private boolean isInteractiveTerminal() {
-		// Check if stdout is a terminal (not redirected)
 		return System.console() != null;
 	}
 
-	private void displaySummary() {
-		final int total = eventAccumulator.size();
+	private void displaySummary(final Map<Path, FileEvent> events) {
+		final int total = events.size();
 
 		if (verbose) {
-			// Verbose: show file list
 			logger.info(" -> Processed " + total + " files:");
 
-			PathTreePrinter.prettyPrint(logger, event -> event.path, this::prettyPrintEvent , eventAccumulator.values().stream().limit( 100 ).collect( Collectors.toList()) );
-			logger.info(" ... and " + (total - Math.min(total, 100)) + " more files.");
+			SortedPathTreePrinter.prettyPrint(
+					logger,
+					event -> event.path,
+					this::prettyPrintEvent,
+					events.values().stream().limit(MAX_VERBOSE_PATH_LENGTH).collect(Collectors.toCollection(LinkedHashSet::new))
+			);
 
+			final int remainingFiles = (total - Math.min(total, MAX_VERBOSE_PATH_LENGTH));
+			if (remainingFiles > 0) {
+				logger.info( " ... and " + remainingFiles + " more files." );
+			}
 		} else {
-			final Map<WatchEvent.Kind<?>, Long> counts = eventAccumulator.values().stream()
+			final Map<WatchEvent.Kind<?>, Long> counts = events.values().stream()
 					.collect( Collectors.groupingBy(
 							e -> e.kind,
 							Collectors.counting()
 					));
 
-			// Normal: compact summary
 			final List<String> parts = new ArrayList<>();
 
-			parts.add( PathTreePrinter.findCommonRoot(eventAccumulator.values(), e -> e.path ).toString() );
+			parts.add( SortedPathTreePrinter.findCommonRoot(events.values(), e -> e.path ).toString() );
 
 			final Long created = counts.get(StandardWatchEventKinds.ENTRY_CREATE);
 			if (created != null && created > 0) parts.add(created + " created");
