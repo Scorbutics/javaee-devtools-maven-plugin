@@ -23,10 +23,10 @@ public abstract class BaseMojoDeploymentPlugin
 		extends AbstractMojo {
 
 	@Parameter(property = "target")
-	private Path target;
+	private String target;
 
 	@Parameter(property = "deployments")
-	private List<Deployment> deployments;
+	private List<DeploymentRaw> deployments;
 
 	@NonNull
 	@Parameter(property = "structure")
@@ -49,6 +49,7 @@ public abstract class BaseMojoDeploymentPlugin
 	 */
 	public final void execute() throws MojoExecutionException {
 		final Path basePath = session.getCurrentProject().getBasedir().toPath();
+        final Path target = Paths.get(this.target);
 
 		// TODO support other ways to replace files like Docker CP, FTP, SFTP, etc. for target filesystems
 		final FileSystemTargetAction fileSystemTargetAction = new LocalFileSystemTargetAction();
@@ -67,7 +68,7 @@ public abstract class BaseMojoDeploymentPlugin
 				final int maxDeployedModulesDepthCheck =  structure.getAutoDiscovery().getMaxDeployedModulesDepthCheck();
 
 				allDeployments = new DeploymentComputer( getLog(), computers, fileSystemTargetAction, basePath, target, maxDeployedModulesDepthCheck )
-						.aggregateDeployments( session, deployments, deploymentType.isForceTargetCreation(), deploymentType.isArchive() );
+						.aggregateDeployments( session, deployments.stream().map(DeploymentRaw::toDeployment).collect(Collectors.toList()) , deploymentType.isForceTargetCreation(), deploymentType.isArchive() );
 			} else {
 				allDeployments = new ArrayList<>();
 			}
