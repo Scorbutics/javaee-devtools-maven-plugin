@@ -18,4 +18,7 @@ public class WatcherConfiguration {
 
 	@Parameter(property = "debounce")
 	private int debounce = 200;
+
+    @Parameter(property = "triggerRedeploymentDelay")
+    private int triggerRedeploymentDelay = 500;
 }

@@ -71,7 +71,7 @@ public class MojoWatchAllPlugin
 		final MavenMetaInfIntegration mavenMetaInfIntegration = new MavenMetaInfIntegration(fileSystemSourceReader, fileSystemTargetAction, fileLockCheckerAndRetryer, allDeployments, getLog());
 		compilationEventWatcher.subscribe( mavenMetaInfIntegration );
 
-		final HotDeployer hotDeployer = new HotDeployer(directoryWatcher, fileSystemTargetAction, basePath, target, getLog());
+		final HotDeployer hotDeployer = new HotDeployer(directoryWatcher, fileSystemTargetAction, basePath, target, getLog(), watcher.getTriggerRedeploymentDelay());
 		hotDeployer.registerAll(allDeployments);
 
 		getLog().info("Watching...");

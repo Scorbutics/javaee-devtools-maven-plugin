@@ -40,7 +40,8 @@ public class HotDeployer implements FileSystemEventObserver {
     private final Path basePath;
     private final Path targetBasePath;
     private final Log             logger;
-    private final TimedTask<Path> redeployTimer       = new TimedTask<>(5000, this::handleThreadedDeployement);
+    private final int redeployDelayMs;
+    private TimedTask<Path> redeployTimer;
 
     public void registerAll(final Collection<Deployment> hotDeployments) {
 
@@ -67,6 +68,9 @@ public class HotDeployer implements FileSystemEventObserver {
 
 		this.directoryWatcher.subscribeFunctional(this);
         this.directoryWatcher.startConsumerThread();
+        if (redeployDelayMs > 0) {
+            this.redeployTimer = new TimedTask<>(Math.min(Math.max(redeployDelayMs, 500), 10000), this::handleThreadedDeployement);
+        }
     }
 
 	@Override
