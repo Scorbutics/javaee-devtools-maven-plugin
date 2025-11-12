@@ -18,6 +18,9 @@ import com.scorbutics.maven.util.*;
 @Mojo(name = "unit-deploy", defaultPhase = LifecyclePhase.PROCESS_CLASSES, threadSafe = true, aggregator = true)
 public class MojoUnitDeployPlugin extends BaseMojoDeploymentPlugin {
 
+    @Parameter(property = "skipDeployment", defaultValue = "false")
+    protected boolean skipDeployment;
+
 	@Override
 	protected Stream<ProjectComputer> getProjectComputers( final FileSystemSourceReader fileSystemSourceReader ) {
 		return Stream.of(
@@ -39,6 +42,10 @@ public class MojoUnitDeployPlugin extends BaseMojoDeploymentPlugin {
 						.map(d -> d.getEnclosingTargetArchive(target))
 						.distinct())
 				.tryAccept( archivePath -> {
+                    if (skipDeployment) {
+                        getLog().info("Skipping redeployment of archive: " + archivePath);
+                        return;
+                    }
 					getLog().info("Triggering redeployment of archive: " + archivePath);
 					fileSystemTargetAction.touchFile(target.resolve(archivePath + ".dodeploy"));
 				} )
