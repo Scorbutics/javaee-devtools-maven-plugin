@@ -8,9 +8,14 @@ public class FileSystemEventObservableQueue extends ObservableQueue<FileSystemEv
 		implements FileSystemEventObservable  {
 
 	@Override
-	public void notifyCreateModifyEvent(final Path fullPath) {
-		observers.forEach(observer -> observer.onFileCreateModifyEvent(fullPath));
+	public void notifyCreateEvent(final Path fullPath) {
+		observers.forEach(observer -> observer.onFileCreateEvent(fullPath));
 	}
+
+    @Override
+    public void notifyModifyEvent(final Path fullPath) {
+        observers.forEach(observer -> observer.onFileModifyEvent(fullPath));
+    }
 
 	@Override
 	public void notifyDeleteEvent(final Path fullPath) {

@@ -4,7 +4,7 @@ import java.nio.file.*;
 
 
 public interface FileSystemEventObserver {
-	default void onFileCreateModifyEvent(final Path fullPath) {
+	default void onFileCreateEvent(final Path fullPath) {
 		// Default no-op implementation
 	}
 
@@ -15,4 +15,8 @@ public interface FileSystemEventObserver {
 	default void onFileOverflowEvent() {
 		// Default no-op implementation
 	}
+
+    default void onFileModifyEvent(final Path fullPath) {
+        // Default no-op implementation
+    }
 }

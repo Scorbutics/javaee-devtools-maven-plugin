@@ -22,7 +22,15 @@ import lombok.*;
 @RequiredArgsConstructor
 public class HotDeployer implements FileSystemEventObserver {
 
-	@Builder
+    public void disableWatching() {
+        watchingDisabled = true;
+    }
+
+    public void enableWatching() {
+        watchingDisabled = false;
+    }
+
+    @Builder
 	@Value
 	static class DeploymentPath {
 		Deployment deployment;
@@ -42,6 +50,7 @@ public class HotDeployer implements FileSystemEventObserver {
     private final Log             logger;
     private final int redeployDelayMs;
     private TimedTask<Path> redeployTimer;
+    private boolean watchingDisabled = false;
 
     public void registerAll(final Collection<Deployment> hotDeployments) {
 
@@ -74,7 +83,7 @@ public class HotDeployer implements FileSystemEventObserver {
     }
 
 	@Override
-    public void onFileCreateModifyEvent(final Path fullPath) {
+    public void onFileCreateEvent(final Path fullPath) {
 		doOnEvent( fullPath, (final Path absoluteTargetDirectory, final Path absoluteTargetPath, final FileLockCheckerAndRetryer fileLockCheckerAndRetryer, final FileSystemCommonActions fsActions) -> {
 			try {
 				fsActions.makeDirectoryOrThrow( absoluteTargetDirectory );
@@ -90,6 +99,10 @@ public class HotDeployer implements FileSystemEventObserver {
 				}
 			}
 		});
+    }
+
+    public void onFileModifyEvent(final Path fullPath) {
+        onFileCreateEvent(fullPath);
     }
 
 	@Override
@@ -112,6 +125,10 @@ public class HotDeployer implements FileSystemEventObserver {
 	 *
 	 */
 	private void doOnEvent(final Path fullPath, final FileEventAction eventAction) {
+        if (watchingDisabled) {
+            return;
+        }
+
 		final Optional<Deployment> optionalDeployment = computeDeploymentForPath(fullPath);
 		if (!optionalDeployment.isPresent()) {
 			logger.warn("Discarding event on '" + basePath.relativize(fullPath) + "' because no deployment matches this path.");
@@ -144,7 +161,9 @@ public class HotDeployer implements FileSystemEventObserver {
 		if (deployment.isRedeployOnChange()) {
 			final Path archive = deployment.getEnclosingTargetArchive(targetBasePath);
 			if (archive != null) {
-				redeployTimer.overrideAndTrigger(archive.getFileName());
+				if (redeployTimer != null) {
+                    redeployTimer.overrideAndTrigger(archive.getFileName());
+                }
 			} else {
 				logger.warn("Unable to find enclosing archive for redeployment of: " + path);
 			}

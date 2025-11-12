@@ -8,6 +8,8 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
 import java.util.stream.*;
 
+import com.scorbutics.maven.service.event.watcher.debugger.DebuggerEvent;
+import com.scorbutics.maven.service.event.watcher.debugger.DebuggerEventObserver;
 import org.apache.maven.plugin.logging.*;
 
 import com.scorbutics.maven.service.event.watcher.files.observer.*;
@@ -16,12 +18,14 @@ import com.scorbutics.maven.util.path.*;
 import lombok.*;
 
 @Builder
-public class WatcherEventLogger implements FileSystemEventObserver {
+public class WatcherEventLogger implements FileSystemEventObserver, DebuggerEventObserver {
 
 	private static final int MAX_VERBOSE_PATH_LENGTH = 200;
 
 	private boolean verbose;
 	private boolean showProgress;
+
+    private boolean ignoreEvents;
 
 	@NonNull
 	private final Log logger;
@@ -48,9 +52,14 @@ public class WatcherEventLogger implements FileSystemEventObserver {
 	private final Statistics stats = new Statistics();
 
 	@Override
-	public void onFileCreateModifyEvent( final Path fullPath ) {
-		onFileEvent( StandardWatchEventKinds.ENTRY_MODIFY, fullPath);
+	public void onFileCreateEvent(final Path fullPath ) {
+		onFileEvent( StandardWatchEventKinds.ENTRY_CREATE, fullPath);
 	}
+
+    @Override
+    public void onFileModifyEvent(final Path fullPath ) {
+        onFileEvent( StandardWatchEventKinds.ENTRY_MODIFY, fullPath);
+    }
 
 	@Override
 	public void onFileDeleteEvent(final Path fullPath) {
@@ -191,10 +200,11 @@ public class WatcherEventLogger implements FileSystemEventObserver {
 			if (deleted != null && deleted > 0) parts.add(deleted + " deleted");
 
 			logger.info(String.format(
-					"%s -> %s [Total: %d]",
-					timestamp(),
+					"[%s]%s %s (Batch of %d files)",
+                    timestamp(),
+                    ignoreEvents ? " [IGNORED]" : "",
 					String.join(", ", parts),
-					stats.getTotalFiles()
+                    total
 			));
 		}
 	}
@@ -210,7 +220,17 @@ public class WatcherEventLogger implements FileSystemEventObserver {
 		return LocalDateTime.now().format( DateTimeFormatter.ofPattern("HH:mm:ss"));
 	}
 
-	static class Statistics {
+    @Override
+    public void onDebuggerAttached(final DebuggerEvent event) {
+        this.ignoreEvents = true;
+    }
+
+    @Override
+    public void onDebuggerDetached(final DebuggerEvent event) {
+        this.ignoreEvents = false;
+    }
+
+    static class Statistics {
 		private final AtomicInteger totalFiles = new AtomicInteger(0);
 		private final AtomicInteger totalCreated = new AtomicInteger(0);
 		private final AtomicInteger totalModified = new AtomicInteger(0);

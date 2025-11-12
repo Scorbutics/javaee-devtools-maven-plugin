@@ -89,7 +89,7 @@ public class CompilationEventWatcher extends ObservableQueue<CompilationEventObs
 	 * Producer method - adds events to queue without blocking
 	 */
 	@Override
-	public void onFileCreateModifyEvent(final Path fullPath) {
+	public void onFileCreateEvent(final Path fullPath) {
 		if (!running) {
 			logger.warn("Watcher is stopped, ignoring event for: " + fullPath);
 			return;

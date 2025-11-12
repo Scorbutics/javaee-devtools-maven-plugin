@@ -8,6 +8,8 @@ import java.util.stream.*;
 
 import com.scorbutics.maven.model.*;
 
+import com.scorbutics.maven.service.event.watcher.debugger.*;
+import org.apache.maven.plugin.logging.Log;
 import org.apache.maven.plugins.annotations.*;
 
 import com.scorbutics.maven.service.*;
@@ -72,7 +74,23 @@ public class MojoWatchAllPlugin
 		compilationEventWatcher.subscribe( mavenMetaInfIntegration );
 
 		final HotDeployer hotDeployer = new HotDeployer(directoryWatcher, fileSystemTargetAction, basePath, target, getLog(), watcher.getTriggerRedeploymentDelay());
-		hotDeployer.registerAll(allDeployments);
+
+        setupDebuggerConnectionWatcher(getLog()).ifPresent( watcherInstance -> {
+            watcherInstance.subscribe(eventLogger);
+            watcherInstance.subscribe(new DebuggerEventObserver() {
+                @Override
+                public void onDebuggerAttached(final DebuggerEvent event) {
+                    hotDeployer.disableWatching();
+                }
+
+                @Override
+                public void onDebuggerDetached(final DebuggerEvent event) {
+                    hotDeployer.enableWatching();
+                }
+            });
+        });
+
+        hotDeployer.registerAll(allDeployments);
 
 		getLog().info("Watching...");
 		for (;;) {
@@ -84,4 +102,28 @@ public class MojoWatchAllPlugin
 			}
 		}
 	}
+
+    private static Optional<DebuggerConnectionWatcher> setupDebuggerConnectionWatcher(final Log logger) {
+
+        final JdwpPortScanner scanner = JdwpPortScanner.builder()
+                .logger(logger)
+                .scanRangeStart(5000)  // Typical debug port range
+                .scanRangeEnd(9000)
+                .build();
+
+        return scanner.findFirstJdwpPort()
+                .map(port -> {
+                    // Create watcher for the server port
+                    final DebuggerConnectionWatcher watcher = DebuggerConnectionWatcher.builder()
+                            .debugPort(port)
+                            .checkIntervalMs(2000)
+                            .logger(logger)
+                            .build();
+
+                    // Start monitoring
+                    watcher.start();
+
+                    return watcher;
+                });
+    }
 }

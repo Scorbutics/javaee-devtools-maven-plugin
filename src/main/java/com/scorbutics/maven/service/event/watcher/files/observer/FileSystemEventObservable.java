@@ -4,7 +4,8 @@ import java.nio.file.*;
 
 
 public interface FileSystemEventObservable {
-	void notifyCreateModifyEvent(Path fullPath);
+	void notifyCreateEvent(Path fullPath);
+    void notifyModifyEvent(Path fullPath);
 	void notifyDeleteEvent(Path fullPath);
 	void notifyOverflowEvent();
 }

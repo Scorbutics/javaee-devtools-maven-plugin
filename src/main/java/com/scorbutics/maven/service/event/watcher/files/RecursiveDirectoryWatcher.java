@@ -168,7 +168,7 @@ public class RecursiveDirectoryWatcher implements FileSystemEventObserver {
     }
 
 	@Override
-	public void onFileCreateModifyEvent(final Path fullPath) {
+	public void onFileCreateEvent(final Path fullPath) {
 		if (!this.fileSystemSourceReader.isDirectory(fullPath)) {
 			// File is not a directory, ignore
 			return;
@@ -181,6 +181,11 @@ public class RecursiveDirectoryWatcher implements FileSystemEventObserver {
 			logger.warn("Giving up registering new directory for watching: " + fullPath.toString());
 		}
 	}
+
+    @Override
+    public void onFileModifyEvent(final Path fullPath) {
+        onFileCreateEvent(fullPath);
+    }
 
 	public void subscribeFunctional(final FileSystemEventObserver observer) {
 		watcher.subscribeFunctionalFileEvent( observer );

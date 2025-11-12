@@ -126,8 +126,10 @@ public class FileSystemWatcher implements EventWatcher  {
     }
 
 	private void dispatchEventToQueue(final FileSystemEventObservableQueue eventQueue, final Path fullPath, final WatchEvent.Kind<?> kind) {
-		if (kind == StandardWatchEventKinds.ENTRY_CREATE || kind == StandardWatchEventKinds.ENTRY_MODIFY) {
-			eventQueue.notifyCreateModifyEvent(fullPath);
+		if (kind == StandardWatchEventKinds.ENTRY_CREATE) {
+            eventQueue.notifyCreateEvent(fullPath);
+        } else if (kind == StandardWatchEventKinds.ENTRY_MODIFY) {
+			eventQueue.notifyModifyEvent(fullPath);
 		} else if (kind == StandardWatchEventKinds.ENTRY_DELETE) {
 			eventQueue.notifyDeleteEvent(fullPath);
 		} else if (kind == StandardWatchEventKinds.OVERFLOW) {
