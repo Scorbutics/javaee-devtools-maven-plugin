@@ -24,6 +24,7 @@ public class DeploymentRaw {
     @Parameter(property = "archive")
     private String archive;
 
+    @Builder.Default
     private boolean enabled = true;
 
     private Packaging packaging;
@@ -33,10 +34,12 @@ public class DeploymentRaw {
     private boolean useSourceFilesystemOnly;
 
     public Deployment toDeployment() {
+        final Path source = this.source == null ? null : Paths.get(this.source);
         return Deployment.builder()
-                .source(this.source == null ? null : Paths.get(this.source))
+                .source(source)
                 .target(this.target == null ? null : Paths.get(this.target))
-                .base(this.base == null ? null : Paths.get(this.base))
+                // If base is not set, default to source's parent
+                .base(this.base == null ? (source == null ? null : source.getParent()) : Paths.get(this.base))
                 .archive(this.archive == null ? null : Paths.get(this.archive))
                 .enabled(this.enabled)
                 .packaging(this.packaging)

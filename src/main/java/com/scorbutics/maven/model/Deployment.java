@@ -9,36 +9,36 @@ import java.util.stream.*;
 import com.scorbutics.maven.model.packaging.*;
 
 @ToString
-@Data
+@Value
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @AllArgsConstructor
-@NoArgsConstructor
 @Builder(toBuilder = true)
 public class Deployment implements java.io.Serializable {
     private static final long serialVersionUID = 1L;
 
     @EqualsAndHashCode.Include
-    private Path source;
+    Path source;
     @EqualsAndHashCode.Include
-    private Path target;
+    Path target;
 
-	private Path base;
-	private Path archive;
+	Path base;
+	Path archive;
 
-	private boolean enabled = true;
+    @Builder.Default
+	boolean enabled = true;
 
-	private Packaging packaging;
+	Packaging packaging;
 
-    private boolean unpack;
-    private boolean redeployOnChange;
-    private boolean useSourceFilesystemOnly;
+    boolean unpack;
+    boolean redeployOnChange;
+    boolean useSourceFilesystemOnly;
 
 	@Builder.Default
-	private transient int depth = Integer.MIN_VALUE;
+	transient int depth = Integer.MIN_VALUE;
 
-	private transient boolean               computed;
+	transient boolean               computed;
 	@Builder.Default
-	private transient Map<Path, List<Deployment>> children = new HashMap<>();
+	transient Map<Path, List<Deployment>> children = new HashMap<>();
 
     public Path getEnclosingTargetArchive(final Path basePath) {
         final Path path = basePath.relativize(this.target);
@@ -63,18 +63,17 @@ public class Deployment implements java.io.Serializable {
 		return DeploymentConfigurationError.NONE;
 	}
 
-	public void normalizePaths(final Path basePath, final Path targetPath) {
-		if (!source.isAbsolute()) {
-			source = basePath.resolve(source);
-		}
-
-		if (!target.isAbsolute()) {
-			target = (useSourceFilesystemOnly ? basePath : targetPath).resolve(source);
-		}
-
-		if (base != null && !base.isAbsolute()) {
-			base = basePath.resolve(base);
-		}
+	public Deployment normalizePaths(final Path basePath, final Path targetPath) {
+		final Path source = !this.source.isAbsolute() ? basePath.resolve(this.source) : this.source;
+        final Path target = !this.target.isAbsolute()
+                ? (useSourceFilesystemOnly ? basePath : targetPath).resolve(source)
+                : this.target;
+        final Path base = this.base != null && !this.base.isAbsolute() ? basePath.resolve(this.base) : this.base;
+        return this.toBuilder()
+                .source(source)
+                .target(target)
+                .base(base)
+                .build();
 	}
 
 	public Set<Path> computeDirectSubtrees() {

@@ -30,16 +30,16 @@ public class DeploymentComputer {
 
 	private static final Deployment DUMB_DEPLOYMENT = Deployment.builder().build();
 
-	private void validateManualDeployments(final List<Deployment> deployments) {
+	private List<Deployment> validateManualDeployments(final List<Deployment> deployments) {
 		// Normalize existing deployments folders to absolute paths
 		// Validate deployments
-		deployments.forEach(deployment -> {
+		return deployments.stream().map(deployment -> {
 			final DeploymentConfigurationError error = deployment.validate();
 			if (error != DeploymentConfigurationError.NONE) {
 				throw new IllegalArgumentException( "Invalid deployment configuration: " + deployment + " - Error: " + error.name() );
 			}
-			deployment.normalizePaths(basePath, targetPath);
-		});
+			return deployment.normalizePaths(basePath, targetPath);
+		}).collect(Collectors.toList());
 	}
 
 	private Map<Path, List<Deployment>> buildDeploymentsTree(final boolean isArchive, final List<ComputedModule> modules) {
@@ -86,8 +86,7 @@ public class DeploymentComputer {
 
 		// Then if they exist, merge the manual deployments at the right place in the tree
 		if (manualDeployments != null && !manualDeployments.isEmpty()) {
-			validateManualDeployments( manualDeployments );
-			return merge(manualDeployments, computedDeployments).values().stream().flatMap( List::stream ).collect( Collectors.toList());
+			return merge(validateManualDeployments( manualDeployments ), computedDeployments).values().stream().flatMap( List::stream ).collect( Collectors.toList());
 		}
 
 		return computedDeployments.values().stream().flatMap( List::stream ).collect( Collectors.toList());
@@ -126,18 +125,20 @@ public class DeploymentComputer {
 						deployment
 					)
 				)
-				.peek( pair -> {
+				.map( pair -> {
 					if ( pair.getValue().getPackaging() == null ) {
 						// Set manual deployment packaging to computed deployment packaging
 						if ( pair.getKey() != DUMB_DEPLOYMENT ) {
-							pair.getValue().setPackaging( pair.getKey().getPackaging() );
-							logger.debug( "Setting packaging for manual deployment '" + pair.getValue() +
-									"' to computed deployment packaging '" + pair.getKey().getPackaging() + "'" );
-						} else {
-							logger.warn( "Unable to set packaging for manual deployment '" + pair.getValue() +
-									"' because no matching computed deployment could be found");
+							final Deployment updatedManualDeployment = pair.getValue().toBuilder()
+                                    .packaging( pair.getKey().getPackaging() ).build();
+							logger.debug( "Setting packaging for manual deployment '" + updatedManualDeployment +
+									"' to computed deployment packaging '" + updatedManualDeployment.getPackaging() + "'" );
+                            return Pair.of( pair.getKey(), updatedManualDeployment );
 						}
+                        logger.warn( "Unable to set packaging for manual deployment '" + pair.getValue() +
+                                "' because no matching computed deployment could be found");
 					}
+                    return pair;
 				})
 				.collect( Collectors.groupingBy(Pair::getKey, Collectors.mapping( Pair::getValue, Collectors.toCollection(HashSet::new) )) );
 

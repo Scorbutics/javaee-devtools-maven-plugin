@@ -39,9 +39,9 @@ public class MojoFullDeployPlugin
 
 		final List<Deployment> rootDeployments = allDeployments.stream()
 				.filter(deployment -> deployment.getDepth() == 0)
-				.peek( deployment ->  {
+				.map( deployment ->  {
 					// set target to the main target for root deployments because those are archives
-					deployment.setTarget( target );
+					return deployment.toBuilder().target( target ).build();
 				} )
 				.collect(Collectors.toList());
 
