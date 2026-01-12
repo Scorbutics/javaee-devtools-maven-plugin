@@ -66,7 +66,7 @@ public class Deployment implements java.io.Serializable {
 	public Deployment normalizePaths(final Path basePath, final Path targetPath) {
 		final Path source = !this.source.isAbsolute() ? basePath.resolve(this.source) : this.source;
         final Path target = !this.target.isAbsolute()
-                ? (useSourceFilesystemOnly ? basePath : targetPath).resolve(source)
+                ? (useSourceFilesystemOnly ? basePath : targetPath).resolve(this.target)
                 : this.target;
         final Path base = this.base != null && !this.base.isAbsolute() ? basePath.resolve(this.base) : this.base;
         return this.toBuilder()
