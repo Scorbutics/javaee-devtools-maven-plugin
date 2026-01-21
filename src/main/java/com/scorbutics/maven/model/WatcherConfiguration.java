@@ -21,4 +21,9 @@ public class WatcherConfiguration {
 
     @Parameter(property = "triggerRedeploymentDelay")
     private int triggerRedeploymentDelay = 500;
+
+    // If null, auto-discover port
+    // If set to -1, disable debugger watcher
+    @Parameter(property = "debugPort")
+    private Integer debugPort = null;
 }

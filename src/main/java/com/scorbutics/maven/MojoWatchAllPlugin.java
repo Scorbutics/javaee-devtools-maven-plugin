@@ -75,20 +75,22 @@ public class MojoWatchAllPlugin
 
 		final HotDeployer hotDeployer = new HotDeployer(directoryWatcher, fileSystemTargetAction, basePath, target, getLog(), watcher.getTriggerRedeploymentDelay());
 
-        setupDebuggerConnectionWatcher(getLog()).ifPresent( watcherInstance -> {
-            watcherInstance.subscribe(eventLogger);
-            watcherInstance.subscribe(new DebuggerEventObserver() {
-                @Override
-                public void onDebuggerAttached(final DebuggerEvent event) {
-                    hotDeployer.disableWatching();
-                }
+        if (!Integer.valueOf(-1).equals(watcher.getDebugPort())) {
+            setupDebuggerConnectionWatcher(getLog(), watcher.getDebugPort()).ifPresent(watcherInstance -> {
+                watcherInstance.subscribe(eventLogger);
+                watcherInstance.subscribe(new DebuggerEventObserver() {
+                    @Override
+                    public void onDebuggerAttached(final DebuggerEvent event) {
+                        hotDeployer.disableWatching();
+                    }
 
-                @Override
-                public void onDebuggerDetached(final DebuggerEvent event) {
-                    hotDeployer.enableWatching();
-                }
+                    @Override
+                    public void onDebuggerDetached(final DebuggerEvent event) {
+                        hotDeployer.enableWatching();
+                    }
+                });
             });
-        });
+        }
 
         hotDeployer.registerAll(allDeployments);
 
@@ -103,7 +105,22 @@ public class MojoWatchAllPlugin
 		}
 	}
 
-    private static Optional<DebuggerConnectionWatcher> setupDebuggerConnectionWatcher(final Log logger) {
+    private static DebuggerConnectionWatcher startWatcher(final Integer port, final Log logger) {
+        final DebuggerConnectionWatcher watcher = DebuggerConnectionWatcher.builder()
+                .debugPort(port)
+                .checkIntervalMs(2000)
+                .logger(logger)
+                .build();
+        watcher.start();
+        return watcher;
+    }
+
+    private static Optional<DebuggerConnectionWatcher> setupDebuggerConnectionWatcher(final Log logger, final Integer configDebugPort) {
+
+        if (configDebugPort != null) {
+            // If a specific debug port is configured, use that
+            return Optional.of(startWatcher(configDebugPort, logger));
+        }
 
         final JdwpPortScanner scanner = JdwpPortScanner.builder()
                 .logger(logger)
@@ -112,18 +129,6 @@ public class MojoWatchAllPlugin
                 .build();
 
         return scanner.findFirstJdwpPort()
-                .map(port -> {
-                    // Create watcher for the server port
-                    final DebuggerConnectionWatcher watcher = DebuggerConnectionWatcher.builder()
-                            .debugPort(port)
-                            .checkIntervalMs(2000)
-                            .logger(logger)
-                            .build();
-
-                    // Start monitoring
-                    watcher.start();
-
-                    return watcher;
-                });
+                .map(port -> startWatcher(port, logger));
     }
 }
