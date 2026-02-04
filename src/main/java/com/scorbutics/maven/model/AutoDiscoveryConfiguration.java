@@ -11,4 +11,7 @@ public class AutoDiscoveryConfiguration {
 
 	@Parameter(property = "maxDeployedModulesDepthCheck")
 	private int maxDeployedModulesDepthCheck = 5;
+
+    @Parameter(property = "base")
+    private String base;
 }

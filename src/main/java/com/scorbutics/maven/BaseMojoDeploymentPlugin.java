@@ -9,6 +9,7 @@ import java.util.stream.*;
 import org.apache.maven.execution.*;
 import org.apache.maven.plugin.*;
 import org.apache.maven.plugins.annotations.*;
+import org.apache.maven.project.*;
 
 import com.scorbutics.maven.model.*;
 import com.scorbutics.maven.service.*;
@@ -35,6 +36,9 @@ public abstract class BaseMojoDeploymentPlugin
 	@Parameter(defaultValue = "${session}", required = true, readonly = true)
 	private MavenSession session;
 
+	@Component
+	private ProjectBuilder projectBuilder;
+
 	/**
 	 * Executes the Maven Mojo for hot deployment.
 	 * <p>
@@ -48,7 +52,9 @@ public abstract class BaseMojoDeploymentPlugin
 	 *                                or if an error occurs during hot deployment.
 	 */
 	public final void execute() throws MojoExecutionException {
-		final Path basePath = session.getCurrentProject().getBasedir().toPath();
+		final Path basePath = Optional.ofNullable(structure.getAutoDiscovery().isEnabled() ? structure.getAutoDiscovery().getBase() : null)
+				.map(Paths::get)
+				.orElse(session.getCurrentProject().getBasedir().toPath());
         final Path target = Paths.get(this.target);
 
 		// TODO support other ways to replace files like Docker CP, FTP, SFTP, etc. for target filesystems
@@ -67,8 +73,19 @@ public abstract class BaseMojoDeploymentPlugin
 			if (structure.getAutoDiscovery().isEnabled()) {
 				final int maxDeployedModulesDepthCheck =  structure.getAutoDiscovery().getMaxDeployedModulesDepthCheck();
 
+				// Determine if we need to load external POM projects
+				final Path externalBasePath = structure.getAutoDiscovery().getBase() != null ? basePath : null;
+
+				// Aggregate projects from session reactor and external POM if configured
+				final MavenProjectAggregator projectAggregator = new MavenProjectAggregator(
+						projectBuilder,
+						session,
+						getLog()
+				);
+				final List<MavenProject> allProjects = projectAggregator.aggregateProjects(externalBasePath);
+
 				allDeployments = new DeploymentComputer( getLog(), computers, fileSystemTargetAction, basePath, target, maxDeployedModulesDepthCheck )
-						.aggregateDeployments( session, deployments.stream().map(DeploymentRaw::toDeployment).collect(Collectors.toList()) , deploymentType.isForceTargetCreation(), deploymentType.isArchive() );
+						.aggregateDeployments( allProjects, deployments.stream().map(DeploymentRaw::toDeployment).collect(Collectors.toList()) , deploymentType.isForceTargetCreation(), deploymentType.isArchive() );
 			} else {
 				allDeployments = new ArrayList<>();
 			}

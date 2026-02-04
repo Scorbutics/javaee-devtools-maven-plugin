@@ -6,8 +6,8 @@ import com.scorbutics.maven.service.filesystem.RecursiveDirectoryWalker;
 import com.scorbutics.maven.service.filesystem.target.FileSystemTargetAction;
 import com.scorbutics.maven.util.*;
 
-import org.apache.maven.execution.*;
 import org.apache.maven.plugin.logging.Log;
+import org.apache.maven.project.MavenProject;
 
 import java.nio.file.Path;
 import java.util.*;
@@ -30,8 +30,8 @@ public class ProjectFileStructureAnalyzer {
 		this.maxDeployedModulesDepthCheck = Math.min( Math.max( maxDeployedModulesDepthCheck, MIN_DEPTH_RECURSIVE_CHECK_ON_DEPLOYED_MODULES), MAX_DEPTH_RECURSIVE_CHECK_ON_DEPLOYED_MODULES ) ;
     }
 
-    public Optional<ComputedProject> analyze(final MavenSession session, final Path target, final boolean shouldMapOnTargetFilesystem) {
-        final Optional<ComputedProject> result = computeUsingMavenProject(session)
+    public Optional<ComputedProject> analyze(final List<MavenProject> allProjects, final Path target, final boolean shouldMapOnTargetFilesystem) {
+        final Optional<ComputedProject> result = computeUsingMavenProject(allProjects)
                 .map(config -> shouldMapOnTargetFilesystem ? rebuildHierarchyUsingTargetDeploymentsFilesystem(config, target) : createHierarchyDirectory(config, target));
 
 		if (result.isPresent() && logger.isDebugEnabled()) {
@@ -132,9 +132,9 @@ public class ProjectFileStructureAnalyzer {
         return ComputedProject.builder().modules(rebuildUsingDeployedModules(project.getModulesFlattened(), target)).build();
     }
 
-    private Optional<ComputedProject> computeUsingMavenProject(final MavenSession session) {
+    private Optional<ComputedProject> computeUsingMavenProject(final List<MavenProject> allProjects) {
 		return computers.stream()
-				.map( computer -> computer.compute( session.getProjects() ) )
+				.map( computer -> computer.compute( allProjects ) )
 				.filter( Optional::isPresent )
 				.map( Optional::get )
 				.findFirst();

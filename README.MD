@@ -336,6 +336,32 @@ mvn javaee-devtools:watch-all
 </configuration>
 ```
 
+### External Project Support
+
+The plugin can scan and deploy projects located outside of the current Maven reactor session. This is useful when you want to run the plugin from a different location than your actual project:
+
+```xml
+<configuration>
+    <target>${env:JBOSS_HOME}/standalone/deployments</target>
+    <structure>
+        <autoDiscovery>
+            <enabled>true</enabled>
+            <!-- Point to an external project directory -->
+            <base>/path/to/external/project</base>
+            <maxDeployedModulesDepthCheck>5</maxDeployedModulesDepthCheck>
+        </autoDiscovery>
+    </structure>
+</configuration>
+```
+
+When the `structure.autoDiscovery.base` parameter is set to a path different from the current project:
+- The plugin will load the `pom.xml` from that external directory
+- All child modules are recursively loaded (for multi-module projects)
+- External projects are merged with the current Maven session projects
+- Auto-discovery and deployment computation work as if the external projects were part of the reactor
+
+**Note**: The external directory must contain a valid `pom.xml` file. If the POM is missing or invalid, the build will fail with a clear error message.
+
 ## Requirements
 
 - **Maven**: 3.6.0 or higher

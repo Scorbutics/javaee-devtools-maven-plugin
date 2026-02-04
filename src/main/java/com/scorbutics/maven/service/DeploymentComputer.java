@@ -7,7 +7,6 @@ import java.util.function.*;
 import java.util.stream.*;
 
 import org.apache.commons.lang3.tuple.*;
-import org.apache.maven.execution.*;
 import org.apache.maven.plugin.logging.*;
 import org.apache.maven.project.*;
 
@@ -65,9 +64,9 @@ public class DeploymentComputer {
 				.collect( Collectors.groupingBy( Deployment::getSource, Collectors.mapping( Function.identity(), Collectors.toList() ) ) );
 	}
 
-	private Map<Path, List<Deployment>> buildComputedDeploymentsMap( final MavenSession session, final boolean mapOnTargetFileSystem, final boolean isArchive) {
+	private Map<Path, List<Deployment>> buildComputedDeploymentsMap( final List<MavenProject> allProjects, final boolean mapOnTargetFileSystem, final boolean isArchive) {
 		final Optional<ComputedProject> computedProject = new ProjectFileStructureAnalyzer(maxDeployedModulesDepthCheck, fileSystemTargetAction, computers, logger)
-				.analyze( session, targetPath, mapOnTargetFileSystem);
+				.analyze( allProjects, targetPath, mapOnTargetFileSystem);
 
 		if (!computedProject.isPresent()) {
 			logger.warn("Unable to deduce deployments from project structure.");
@@ -77,12 +76,12 @@ public class DeploymentComputer {
 		return buildDeploymentsTree( isArchive, computedProject.get().getModules() );
 	}
 
-	public Collection<Deployment> aggregateDeployments(final MavenSession session, final List<Deployment> manualDeployments, final boolean mapOnTargetFileSystem, final boolean isArchive)
+	public Collection<Deployment> aggregateDeployments(final List<MavenProject> allProjects, final List<Deployment> manualDeployments, final boolean mapOnTargetFileSystem, final boolean isArchive)
 			throws
 			IOException {
 
 		// First compute deployments from project structure
-		final Map<Path, List<Deployment>> computedDeployments = buildComputedDeploymentsMap(session, mapOnTargetFileSystem, isArchive);
+		final Map<Path, List<Deployment>> computedDeployments = buildComputedDeploymentsMap(allProjects, mapOnTargetFileSystem, isArchive);
 
 		// Then if they exist, merge the manual deployments at the right place in the tree
 		if (manualDeployments != null && !manualDeployments.isEmpty()) {
